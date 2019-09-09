@@ -38,7 +38,6 @@ if __name__ == "__main__":
             print("message: %s" % old_errs_list[index]["msg"])
             print("context:\n %s" % old_errs_list[index]["context"])
 
-
     if len(broken_indexes) > 0:
         sys.exit(1)
     else:
