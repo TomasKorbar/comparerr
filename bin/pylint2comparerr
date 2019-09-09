@@ -12,7 +12,7 @@ if __name__ == "__main__":
         pl_output = pl_file.read()
 
     # get rid of module names
-    pl_output = re.sub(r"\*\*\*\*\*\*\*\*\*\*\*\*\*.*\n", "", pl_output)
+    pl_output = re.sub(r"\*{13}.*\n", "", pl_output)
 
     # we use custom pylint message format which looks like this:
     # {abspath}:{path}:{line}:{msg_id}:{msg}
