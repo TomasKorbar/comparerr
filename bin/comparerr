@@ -1,13 +1,21 @@
 #!/usr/bin/python3
 import sys
 import json
+import argparse
 
 if __name__ == "__main__":
 
-    with open(sys.argv[1],"r") as pl_file:
+    parser = argparse.ArgumentParser(description="Compare 2 reports of errors in JSON comparerr format")
+    parser.add_argument("old_report", type=str, help="Path to old report.")
+    parser.add_argument("new_report", type=str, help="Path to new report.")
+    parser.add_argument("--generate-report", action="store_true", help="Generate report even if there is no new error.")
+
+    args = parser.parse_args()
+
+    with open(args.old_report,"r") as pl_file:
         old_errs_list = list(dict(json.load(pl_file)).values())
 
-    with open(sys.argv[2],"r") as pl_file:
+    with open(args.new_report,"r") as pl_file:
         new_errs_list = list(dict(json.load(pl_file)).values())
 
     old_contexts = [err["context"] for err in old_errs_list]
@@ -24,7 +32,7 @@ if __name__ == "__main__":
         if context not in old_contexts:
             broken_indexes.append(index)
 
-    if len(broken_indexes) > 0 or "--generate-report" in sys.argv:
+    if len(broken_indexes) > 0 or args.generate_report:
         print("New errors:")
         for index in broken_indexes:
             print("file: %s" % new_errs_list[index]["path"])
