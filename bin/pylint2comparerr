@@ -1,14 +1,22 @@
 #!/usr/bin/python3
 
-import sys
 import re
+import sys
 import json
+import argparse
 import linecache
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Convert pylint output to JSON")
+
+    parser.add_argument("pylint_output", type=str, help="File with output of pylint in the right format.")
+    parser.add_argument("save_file", type=str, help="Path to file where JSON output should be saved.")
+
+    args = parser.parse_args()
+
     errors = {}
 
-    with open(sys.argv[1],"r") as pl_file:
+    with open(args.pylint_output,"r") as pl_file:
         pl_output = pl_file.read()
 
     # get rid of module names
@@ -35,5 +43,5 @@ if __name__ == "__main__":
         errors[str(err_num)] = error_dict
         err_num += 1
 
-    with open(sys.argv[2], "w") as out_file:
+    with open(args.save_file, "w") as out_file:
         json.dump(errors, out_file)
