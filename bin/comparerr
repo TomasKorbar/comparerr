@@ -1,52 +1,49 @@
 #!/usr/bin/python3
 import sys
-import json
 import argparse
+
+from comparerr import ReportGenerator
 
 if __name__ == "__main__":
 
-    parser = argparse.ArgumentParser(description="Compare 2 reports of errors in JSON comparerr format")
-    parser.add_argument("old_report", type=str, help="Path to old report.")
-    parser.add_argument("new_report", type=str, help="Path to new report.")
-    parser.add_argument("--generate-report", action="store_true", help="Generate report even if there is no new error.")
+    parser = argparse.ArgumentParser(description="Compare 2 versions of python "
+                                                 "software versioned with git")
+    parser.add_argument("location",
+                        type=str,
+                        help="Location of git repository path/url. Must end with '.git'")
+    parser.add_argument("first_reference",
+                        help="Git reference to the first version of code",
+                        type=str)
+    parser.add_argument("second_reference",
+                        type=str,
+                        help="Git reference to the second version of code")
+    parser.add_argument("-t",
+                        "--targets",
+                        help="Files or folders to analyze with pylint",
+                        nargs="+",
+                        required=True)
+    parser.add_argument("--error-only",
+                        action="store_true",
+                        default=False,
+                        help="Pay attention only to errors from pylint (no refactor hints etc.)")
 
     args = parser.parse_args()
 
-    with open(args.old_report,"r") as pl_file:
-        old_errs_list = list(dict(json.load(pl_file)).values())
+    rprtr = ReportGenerator(args.location, args.targets, only_errors=args.error_only)
+    fixed_errors, created_errors = rprtr.compare_versions(args.first_reference,
+                                                          args.second_reference)
 
-    with open(args.new_report,"r") as pl_file:
-        new_errs_list = list(dict(json.load(pl_file)).values())
+    exit_code = 0
 
-    old_contexts = [err["context"] for err in old_errs_list]
-    new_contexts = [err["context"] for err in new_errs_list]
-
-    solved_indexes = []
-    broken_indexes = []
-
-    for index, context in enumerate(old_contexts):
-        if context not in new_contexts:
-            solved_indexes.append(index)
-
-    for index, context in enumerate(new_contexts):
-        if context not in old_contexts:
-            broken_indexes.append(index)
-
-    if len(broken_indexes) > 0 or args.generate_report:
-        print("New errors:")
-        for index in broken_indexes:
-            print("file: %s" % new_errs_list[index]["path"])
-            print("line: %s" % new_errs_list[index]["line"])
-            print("message: %s" % new_errs_list[index]["msg"])
-            print("context:\n %s" % new_errs_list[index]["context"])
+    if fixed_errors:
         print("Fixed errors:")
-        for index in solved_indexes:
-            print("file: %s" % old_errs_list[index]["path"])
-            print("line: %s" % old_errs_list[index]["line"])
-            print("message: %s" % old_errs_list[index]["msg"])
-            print("context:\n %s" % old_errs_list[index]["context"])
+    for err in fixed_errors:
+        err.display_message()
 
-    if len(broken_indexes) > 0:
-        sys.exit(1)
-    else:
-        sys.exit(0)
+    if created_errors:
+        print("Added errors:")
+        exit_code = 1
+    for err in created_errors:
+        err.display_message()
+
+    sys.exit(exit_code)
