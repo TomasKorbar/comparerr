@@ -32,8 +32,11 @@ class ReportGenerator:
         Return value:
         tuple -- (list(fixed_errors), list(added_errors))
         """
-        old_version_errors = self.analyze_version(ref1)
-        new_version_errors = self.analyze_version(ref2)
+
+        changed_files = self._get_changed_files(ref1, ref2)
+
+        old_version_errors = self.analyze_version(ref1, changed_files)
+        new_version_errors = self.analyze_version(ref2, changed_files)
 
         old_contexts = [err.context for err in old_version_errors]
         new_contexts = [err.context for err in new_version_errors]
@@ -57,7 +60,7 @@ class ReportGenerator:
                 [new_version_errors[index] for index in new_errors]
                )
 
-    def analyze_version(self, ref):
+    def analyze_version(self, ref, concrete_targets=None):
         """Analyze specific version of python software according to git
         reference
 
@@ -76,7 +79,7 @@ class ReportGenerator:
         cloned_repo.head.reset(commit=ref, working_tree=True)
 
         # use pylint to analyze source code
-        msgs = self._get_messages(workdir)
+        msgs = self._get_messages(workdir, concrete_targets)
 
         # delete temporary directory and its contents
         cloned_repo.close()
@@ -95,7 +98,7 @@ class ReportGenerator:
         # return all messages and their contexts
         return msgs
 
-    def _get_messages(self, path):
+    def _get_messages(self, path, concrete_targets=None):
         # reporter will hold errors
         rprtr = ComparerrReporter()
         # add absolute path to targets
@@ -107,12 +110,26 @@ class ReportGenerator:
             else:
                 abspath_targets.append(new_path)
 
+        final_targets = []
+
+        if concrete_targets:
+            for target in list(abspath_targets):
+                if os.path.isdir(target):
+                    for pfile in glob.glob(os.path.join(target, "**/*"), recursive=True):
+                        if pfile.replace(path + "/", "") in concrete_targets:
+                            final_targets.append(pfile)
+                else:
+                    if target.replace(path, "") in concrete_targets:
+                        final_targets.append(target)
+        else:
+            final_targets = abspath_targets
+
         args = ["-sn",
                 "--exit-zero",
                 ]
         if self.error_only:
             args.append("-E")
-        args.extend(abspath_targets)
+        args.extend(final_targets)
         pylint.lint.Run(args,
                         reporter=rprtr,
                         do_exit=False)
@@ -152,3 +169,15 @@ class ReportGenerator:
                 context += linecache.getline(message.abspath, linenum)
             msgs_with_context.append(ComparerrMessage(message, context))
         return msgs_with_context
+
+    def _get_changed_files(self, ref1, ref2):
+        # create temporary directory for copied repository
+        workdir = tempfile.mkdtemp()
+
+        # copy repository
+        shutil.copytree(self.location, os.path.join(workdir, ".git"))
+        cloned_repo = git.Repo(path=workdir)
+        # get names of files which changed between two refs
+        names_string = cloned_repo.git.diff(ref1, ref2, "--name-only")
+        names_list = [name for name in names_string.splitlines()]
+        return names_list
