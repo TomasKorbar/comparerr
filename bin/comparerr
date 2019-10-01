@@ -11,7 +11,7 @@ if __name__ == "__main__":
                                                  "software versioned with git")
     parser.add_argument("location",
                         type=str,
-                        help="Location of git repository. Must end with '.git'")
+                        help="Path to git repository. Must end with '.git'")
     parser.add_argument("first_reference",
                         help="Git reference to the first version of code",
                         type=str)
