@@ -67,6 +67,10 @@ class ReportGenerator:
         Positional arguments:
         ref -- Git reference to version
 
+        Keyword arguments:
+        concrete_targets -- list of paths. If supplied then comparerr will focus on only these files
+                            (on big projects this can save big amount of time)
+
         Return value:
         list(ComparerrMessage) -- list of messages about errors
         """
@@ -98,10 +102,10 @@ class ReportGenerator:
         # return all messages and their contexts
         return msgs
 
-    def _targets2abspaths(self, abspath):
+    def _targets2abspaths(self, root):
         abspaths = []
         for target in self.targets:
-            new_path = glob.glob(os.path.join(abspath, target), recursive=True)
+            new_path = glob.glob(os.path.join(root, target), recursive=True)
             if isinstance(new_path, list):
                 abspaths.extend(new_path)
             else:
@@ -121,6 +125,8 @@ class ReportGenerator:
         return filtered_paths
 
     def _strip_path_from_pylint_errors(self, root, pylint_errors):
+        # unfortuntely pylint errors are named tuple so we can not change its attributes directly
+        # we need to recreate all errors with changed path
         new_errors = []
         for err in pylint_errors:
             new_errors.append(PylintMessage(
