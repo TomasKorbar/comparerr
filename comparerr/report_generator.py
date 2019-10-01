@@ -98,51 +98,36 @@ class ReportGenerator:
         # return all messages and their contexts
         return msgs
 
-    def _get_messages(self, path, concrete_targets=None):
-        # reporter will hold errors
-        rprtr = ComparerrReporter()
-        # add absolute path to targets
-        abspath_targets = []
+    def _targets2abspaths(self, abspath):
+        abspaths = []
         for target in self.targets:
-            new_path = glob.glob(os.path.join(path, target), recursive=True)
+            new_path = glob.glob(os.path.join(abspath, target), recursive=True)
             if isinstance(new_path, list):
-                abspath_targets.extend(new_path)
+                abspaths.extend(new_path)
             else:
-                abspath_targets.append(new_path)
+                abspaths.append(new_path)
+        return abspaths
 
-        final_targets = []
+    def _filter_paths(self, root, paths, focused_paths):
+        filtered_paths = []
+        for target in list(paths):
+            if os.path.isdir(target):
+                for pfile in glob.glob(os.path.join(target, "**/*"), recursive=True):
+                    if pfile.replace(root + "/", "") in focused_paths:
+                        filtered_paths.append(pfile)
+            else:
+                if target.replace(root, "") in focused_paths:
+                    filtered_paths.append(target)
+        return filtered_paths
 
-        if concrete_targets:
-            for target in list(abspath_targets):
-                if os.path.isdir(target):
-                    for pfile in glob.glob(os.path.join(target, "**/*"), recursive=True):
-                        if pfile.replace(path + "/", "") in concrete_targets:
-                            final_targets.append(pfile)
-                else:
-                    if target.replace(path, "") in concrete_targets:
-                        final_targets.append(target)
-        else:
-            final_targets = abspath_targets
-
-        args = ["-sn",
-                "--exit-zero",
-                ]
-        if self.error_only:
-            args.append("-E")
-        args.extend(final_targets)
-        pylint.lint.Run(args,
-                        reporter=rprtr,
-                        do_exit=False)
-
-        # pylint is adding path of temporary folder to the path of errors
-        # this is redundant so we will strip it
+    def _strip_path_from_pylint_errors(self, root, pylint_errors):
         new_errors = []
-        for err in rprtr.errors:
+        for err in pylint_errors:
             new_errors.append(PylintMessage(
                 err.msg_id,
                 err.symbol,
                 (err.abspath,
-                 err.path.replace(path, ""),
+                 err.path.replace(root, ""),
                  err.module,
                  err.obj,
                  err.line,
@@ -151,7 +136,30 @@ class ReportGenerator:
                 err.msg,
                 err.confidence,
             ))
-        rprtr.errors = new_errors
+        return new_errors
+
+    def _get_messages(self, path, concrete_targets=None):
+        # reporter will hold errors
+        rprtr = ComparerrReporter()
+        # add absolute path to targets
+        abspath_targets = self._targets2abspaths(path)
+
+        final_targets = []
+        # if we know which files changed than we can scan only them and save time
+        if concrete_targets:
+            final_targets = self._filter_paths(path, abspath_targets, concrete_targets)
+        else:
+            final_targets = abspath_targets
+
+        args = ["-sn", "--exit-zero"]
+        if self.error_only:
+            args.append("-E")
+        args.extend(final_targets)
+        pylint.lint.Run(args, reporter=rprtr, do_exit=False)
+
+        # pylint is adding path of temporary folder to the path of errors
+        # this is redundant so we will strip it
+        rprtr.errors = self._strip_path_from_pylint_errors(path, rprtr.errors)
 
         return self._get_message_context(rprtr.errors)
 
